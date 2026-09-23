@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="theme-color" content="#7a1230">
+<title>CIC MMF Calculator</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f5f7;color:#222}.app{max-width:760px;margin:auto;padding:18px}
+h1{margin:0 0 6px;color:#7a1230;font-size:25px}.sub{color:#666;font-size:13px;margin-bottom:18px}
+.card{background:#fff;border-radius:14px;padding:18px;margin-bottom:14px;box-shadow:0 2px 10px #0001}h2{font-size:18px;margin:0 0 14px;color:#7a1230}
+label{display:block;font-weight:600;font-size:13px;margin:12px 0 6px}input{width:100%;padding:12px;border:1px solid #ccc;border-radius:9px;font-size:16px}
+input:focus{outline:2px solid #7a123044;border-color:#7a1230}.hint{font-size:12px;color:#777;margin-top:5px}
+.mode{display:flex;gap:8px;margin-bottom:12px}button{border:0;border-radius:9px;padding:11px 14px;background:#ddd;font-weight:700;cursor:pointer}
+button.active{background:#7a1230;color:#fff}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.result{background:#f8f8f8;border-radius:10px;padding:11px;margin:7px 0;display:flex;justify-content:space-between;gap:10px}.result span:first-child{color:#555}.result strong{color:#7a1230;text-align:right}
+.tablewrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px;border-bottom:1px solid #ddd;text-align:right}
+th:first-child,td:first-child{text-align:left}th{background:#f2f2f2;color:#555}.note{font-size:12px;color:#666;line-height:1.5}.error{color:#b00020;font-weight:600;margin-top:10px}
+@media(max-width:560px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+<h1>CIC MMF Calculator</h1>
+<div class="sub">Monthly projection with editable daily interest rate and reverse calculation.</div>
+
+<div class="card"><h2>Inputs</h2>
+<div class="mode"><button id="assetMode" class="active" onclick="setMode('asset')">Edit Assets</button>
+<button id="interestMode" onclick="setMode('interest')">Edit Net Interest</button></div>
+
+<div class="grid">
+<div><label>Current Assets (KSh)</label><input id="assets" type="number" step="0.01" value="100000"></div>
+<div><label>Annual Interest Rate (%)</label><input id="annual" type="number" step="0.001" value="10">
+<div class="hint">Changing annual rate updates the daily rate.</div></div>
+<div><label>Daily Interest Rate (%)</label><input id="daily" type="number" step="0.000001" value="0.02739726">
+<div class="hint">This rate is used for calculations. Monthly interest assumes 30 days.</div></div>
+<div><label>Withholding Tax (%)</label><input id="wht" type="number" step="0.01" value="5"></div>
+</div>
+
+<label>Current Month Net Interest (KSh)</label>
+<input id="net" type="number" step="0.01" value="782.19">
+<div class="hint">In Edit Net Interest mode, changing this works backwards to calculate required assets.</div>
+<div id="error" class="error"></div>
+</div>
+
+<div class="card"><h2>Current Month</h2>
+<div class="result"><span>Opening / Required Assets</span><strong id="o">KSh 0.00</strong></div>
+<div class="result"><span>Gross Interest</span><strong id="g">KSh 0.00</strong></div>
+<div class="result"><span>Withholding Tax</span><strong id="tax">KSh 0.00</strong></div>
+<div class="result"><span>Net Interest</span><strong id="ni">KSh 0.00</strong></div>
+<div class="result"><span>Closing Assets</span><strong id="c">KSh 0.00</strong></div>
+<div class="result"><span>Effective Annual Rate from Daily Rate</span><strong id="derivedAnnual">0.00%</strong></div>
+</div>
+
+<div class="card"><h2>12-Month Projection</h2><div class="tablewrap"><table>
+<thead><tr><th>Month</th><th>Opening Assets</th><th>Gross Interest</th><th>WHT</th><th>Net Interest</th><th>Closing Assets</th></tr></thead>
+<tbody id="projection"></tbody></table></div>
+<p class="note">Gross monthly interest = opening assets × daily rate × 30. WHT is deducted from gross interest only. Net interest = gross interest − WHT. The next month starts with the previous month's closing assets.</p>
+</div>
+</div>
+
+<script>
+let mode='asset';
+const $=id=>document.getElementById(id);
+const money=n=>'KSh '+Number(n).toLocaleString('en-KE',{minimumFractionDigits:2,maximumFractionDigits:2});
+function setMode(m){mode=m;$('assetMode').classList.toggle('active',m==='asset');$('interestMode').classList.toggle('active',m==='interest');calculate();}
+function num(id){return parseFloat($(id).value);}
+function calculate(){
+ const daily=num('daily'),whtRate=num('wht');let assets=num('assets'),netInput=num('net');
+ $('error').textContent='';
+ if(!Number.isFinite(whtRate)||whtRate<0||whtRate>=100){$('error').textContent='Enter a WHT rate between 0% and 99.99%.';return;}
+ if(!Number.isFinite(daily)||daily<=0){$('error').textContent='Enter a daily interest rate greater than 0%.';return;}
+ const factor=daily/100*30*(1-whtRate/100);
+ if(mode==='interest'){if(!Number.isFinite(netInput)||netInput<0){$('error').textContent='Enter a valid net interest amount.';return;}assets=netInput/factor;$('assets').value=assets.toFixed(2);}
+ else{if(!Number.isFinite(assets)||assets<0){$('error').textContent='Enter a valid assets amount.';return;}netInput=assets*factor;$('net').value=netInput.toFixed(2);}
+ const gross=assets*daily/100*30,tax=gross*whtRate/100,net=gross-tax,closing=assets+net;
+ $('o').textContent=money(assets);$('g').textContent=money(gross);$('tax').textContent=money(tax);$('ni').textContent=money(net);$('c').textContent=money(closing);
+ $('derivedAnnual').textContent=(daily*365).toFixed(4)+'%';
+ let opening=assets,rows='';
+ for(let m=1;m<=12;m++){const mg=opening*daily/100*30,mt=mg*whtRate/100,mn=mg-mt,mc=opening+mn;
+ rows+=`<tr><td>${m}</td><td>${money(opening)}</td><td>${money(mg)}</td><td>${money(mt)}</td><td>${money(mn)}</td><td>${money(mc)}</td></tr>`;opening=mc;}
+ $('projection').innerHTML=rows;
+}
+$('annual').addEventListener('input',()=>{const a=num('annual');if(Number.isFinite(a)&&a>0)$('daily').value=(a/365).toFixed(8);calculate();});
+$('daily').addEventListener('input',calculate);
+['assets','wht'].forEach(id=>$(id).addEventListener('input',calculate));
+$('net').addEventListener('input',()=>{setMode('interest');});
+calculate();
+</script>
+</body></html>
